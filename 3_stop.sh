@@ -6,27 +6,23 @@ set -euo pipefail
 # --- Bootstrap cs2-multiserver and dependencies ---
 # Usar la carpeta donde está el script como base
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$SCRIPT_DIR"
+REPO_DIR="$SCRIPT_DIR/cs2-multiserver"
 CS2_BIN_PATH="$REPO_DIR/cs2-server"
 DID_CLONE=0
 
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 resolve_msm() {
-  if have_cmd cs2-server; then
+  if command -v cs2-server >/dev/null 2>&1; then
     command -v cs2-server
-  elif have_cmd msm; then
+  elif command -v msm >/dev/null 2>&1; then
     command -v msm
   elif [[ -x "$REPO_DIR/cs2-server" ]]; then
     echo "$REPO_DIR/cs2-server"
   elif [[ -x "$REPO_DIR/msm" ]]; then
     echo "$REPO_DIR/msm"
-  elif [[ -x "$HOME/cs2-multiserver/msm" ]]; then
-    echo "$HOME/cs2-multiserver/msm"
-  elif [[ -x "$HOME/cs2-multiserver/cs2-server" ]]; then
-    echo "$HOME/cs2-multiserver/cs2-server"
   else
-    echo "ERROR: No se encuentra 'msm' ni 'cs2-server'. Añádelo al PATH o coloca los binarios junto a este script." >&2
+    echo "ERROR: No se encuentra 'msm' ni 'cs2-server'. Añádelo al PATH o asegúrate de tener cs2-multiserver en $REPO_DIR" >&2
     exit 2
   fi
 }
