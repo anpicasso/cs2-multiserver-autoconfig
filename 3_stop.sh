@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Detiene todas las instancias listadas en managed_game_servers.json usando cs2-server/msm
+# Stops all instances listed in managed_game_servers.json using cs2-server/msm.
+# Also stops the 'tmt2' Docker container if present, and cleans up /home/tmt2.
 
-# --- Bootstrap cs2-multiserver and dependencies ---
-# Usar la carpeta donde está el script como base
+# --- Resolve cs2-multiserver binaries ---
+# Use the folder where this script resides as working base
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$SCRIPT_DIR/cs2-multiserver"
 CS2_BIN_PATH="$REPO_DIR/cs2-server"
@@ -22,7 +23,7 @@ resolve_msm() {
   elif [[ -x "$REPO_DIR/msm" ]]; then
     echo "$REPO_DIR/msm"
   else
-    echo "ERROR: No se encuentra 'msm' ni 'cs2-server'. Añádelo al PATH o asegúrate de tener cs2-multiserver en $REPO_DIR" >&2
+    echo "ERROR: Neither 'msm' nor 'cs2-server' found. Add to PATH or ensure cs2-multiserver in $REPO_DIR" >&2
     exit 2
   fi
 }
@@ -36,7 +37,7 @@ if [[ -f "$JSON_FILE" ]]; then
   if command -v jq >/dev/null 2>&1; then
     COUNT=$(jq 'length' "$JSON_FILE")
   else
-    # Fallback tosco sin jq: cuenta líneas con '"port":'
+    # Crude fallback without jq: count lines containing '"port":'
     COUNT=$(grep -c '"port"' "$JSON_FILE" || true)
   fi
   if [[ -n "$COUNT" && "$COUNT" -gt 0 ]]; then
@@ -53,7 +54,7 @@ else
   echo "Aviso: No se encontró $JSON_FILE; omitiendo parada de instancias cs2."
 fi
 
-# Detener contenedor Docker 'tmt2' si existe
+# Stop Docker container 'tmt2' if it exists
 docker_cmd() {
   if docker "$@"; then return 0; fi
   if command -v sudo >/dev/null 2>&1; then sudo docker "$@"; else return 1; fi
@@ -70,7 +71,7 @@ else
   echo "Aviso: Docker no está disponible; omitiendo parada del contenedor."
 fi
 
-# Eliminar directorio /home/tmt2
+# Remove directory /home/tmt2
 TARGET_DIR="/home/tmt2"
 if [[ -d "$TARGET_DIR" ]]; then
   echo "Eliminando $TARGET_DIR ..."

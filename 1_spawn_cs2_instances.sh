@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Purpose: Provision and start multiple CS2 server instances via cs2-multiserver (msm/cs2-server).
+# - Creates instances game1..gameN, assigns game + GOTV ports incrementally.
+# - Generates distinct passwords per instance: game password and RCON password.
+# - Writes managed servers JSON to /home/tmt2/storage/managed_game_servers.json (includes only RCON password).
+# - Writes a CSV with game passwords at ./game_passwords.csv (instance,port,game_password).
 # Usage: ./spawn_cs2_instances.sh <count> <ip> <gslt> [start_game_port=27015] [start_tv_port=27050]
+
 COUNT="${1:-}"
 IP_INPUT="${2:-}"
 GSLT_INPUT="${3:-}"
@@ -14,9 +20,9 @@ if [[ -z "${COUNT}" || -z "${IP_INPUT}" || -z "${GSLT_INPUT}" ]]; then
 fi
 
 # --- Bootstrap cs2-multiserver and dependencies ---
-# Usar la carpeta donde está el script como base
+# Use the folder where this script resides as working base
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-# Descargar ZIP y descomprimir en el mismo directorio del script
+# Download repository ZIP and extract in the same directory as this script
 ZIP_URL="https://github.com/dasisdormax/cs2-multiserver/archive/refs/heads/main.zip"
 REPO_DIR="$SCRIPT_DIR/cs2-multiserver"
 CS2_BIN_PATH="$REPO_DIR/cs2-server"
@@ -25,7 +31,7 @@ DID_CLONE=0
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
 ensure_deps() {
-  # Instala paquetes requeridos si faltan (Debian/Ubuntu)
+  # Install required packages if missing (Debian/Ubuntu)
   local pkgs=(lib32gcc-s1 lib32stdc++6 jq unzip inotify-tools tmux wget)
   if have_cmd apt-get && have_cmd dpkg; then
     local SUDO=""
@@ -33,13 +39,13 @@ ensure_deps() {
       if have_cmd sudo; then SUDO="sudo"; else echo "Aviso: no hay sudo/root; no puedo instalar dependencias" >&2; return 0; fi
     fi
 
-    # Asegurar arquitectura i386 para libs de 32 bits
+    # Ensure i386 architecture is enabled for 32-bit libs
     if ! dpkg --print-foreign-architectures | grep -q '^i386$'; then
       $SUDO dpkg --add-architecture i386 || true
       $SUDO apt-get update -y || true
     fi
 
-    # Detectar faltantes
+    # Detect missing packages
     local missing=()
     for p in "${pkgs[@]}"; do
       if ! dpkg -s "$p" >/dev/null 2>&1; then
@@ -52,14 +58,15 @@ ensure_deps() {
       $SUDO apt-get install -y "${missing[@]}" || true
     fi
   else
-    echo "Aviso: gestor de paquetes no soportado automáticamente. Instala: lib32gcc-s1 lib32stdc++6 jq unzip inotify-tools tmux" >&2
+    # Package manager not auto-supported; print required packages for manual install
+    echo "Notice: install manually -> lib32gcc-s1 lib32stdc++6 jq unzip inotify-tools tmux" >&2
   fi
 }
 
 ensure_repo() {
-  # Descarga y descomprime el repositorio si no existe el ejecutable cs2-server
+  # Download and extract the repo if the cs2-server executable is not available
   if ! have_cmd cs2-server && [[ ! -x "$CS2_BIN_PATH" ]]; then
-    echo "No se encontró cs2-server; descargando cs2-multiserver (ZIP) en $SCRIPT_DIR" >&2
+    echo "cs2-server not found; downloading cs2-multiserver (ZIP) into $SCRIPT_DIR" >&2
     local zip_path="$SCRIPT_DIR/cs2-multiserver-main.zip"
     rm -f "$zip_path" || true
     if have_cmd wget; then
@@ -69,11 +76,11 @@ ensure_repo() {
       return 1
     fi
 
-    # Descomprimir
+    # Unzip downloaded archive
     (cd "$SCRIPT_DIR" && unzip -q -o "$zip_path")
     rm -f "$zip_path" || true
 
-    # Renombrar carpeta resultante cs2-multiserver-main -> cs2-multiserver
+    # Rename extracted folder cs2-multiserver-main -> cs2-multiserver
     if [[ -d "$SCRIPT_DIR/cs2-multiserver-main" ]]; then
       rm -rf "$REPO_DIR" || true
       mv "$SCRIPT_DIR/cs2-multiserver-main" "$REPO_DIR"
@@ -95,11 +102,11 @@ run_setup_or_update() {
   fi
 
   if (( DID_CLONE == 1 )); then
-    echo "Ejecutando configuración inicial (setup) de cs2-server"
-    # Aceptar instalación y usar usuario 'anonymous'
+    echo "Running initial cs2-server setup"
+    # Auto-accept installation and use 'anonymous' Steam user
     printf "y\nanonymous\n" | "$cs2_cmd" setup || true
   fi
-  echo "Actualizando cs2-server"
+  echo "Updating cs2-server"
   "$cs2_cmd" update || true
 }
 
@@ -107,7 +114,7 @@ ensure_repo
 ensure_deps
 run_setup_or_update
 
-# Resolve MSM entrypoint
+# Resolve MSM/cs2-server entrypoint path
 resolve_msm() {
   if command -v cs2-server >/dev/null 2>&1; then
     command -v cs2-server
@@ -118,7 +125,7 @@ resolve_msm() {
   elif [[ -x "$REPO_DIR/msm" ]]; then
     echo "$REPO_DIR/msm"
   else
-    echo "ERROR: No se encuentra 'msm' ni 'cs2-server'. Añádelo al PATH o asegúrate de tener cs2-multiserver en $REPO_DIR" >&2
+    echo "ERROR: Neither 'msm' nor 'cs2-server' found. Add to PATH or ensure cs2-multiserver in $REPO_DIR" >&2
     exit 2
   fi
 }
@@ -127,7 +134,7 @@ MSM_CMD="$(resolve_msm)"
 CFG_DIR="$HOME/msm.d/cs2/cfg"
 BASE_CFG_DIR="$CFG_DIR/base"
 
-# Output JSON administrado (si existe, reemplazarlo por uno nuevo)
+# Managed output JSON (reset on each run)
 JSON_FILE="/home/tmt2/storage/managed_game_servers.json"
 if [[ ! -d "/home/tmt2/storage" ]]; then
   mkdir -p "/home/tmt2/storage" 2>/dev/null || {
@@ -135,7 +142,7 @@ if [[ ! -d "/home/tmt2/storage" ]]; then
       sudo mkdir -p "/home/tmt2/storage"
       sudo chown "$USER":"$USER" "/home/tmt2" "/home/tmt2/storage" || true
     else
-      echo "ERROR: No se pudo crear /home/tmt2/storage" >&2
+      echo "ERROR: Could not create /home/tmt2/storage" >&2
       exit 1
     fi
   }
@@ -145,9 +152,9 @@ if [[ -f "$JSON_FILE" ]]; then
 fi
 echo '[]' > "$JSON_FILE"
 
-# CSV de contraseñas de juego (en el directorio del script)
+# CSV containing per-instance game passwords (created in script directory)
 CSV_FILE="$SCRIPT_DIR/game_passwords.csv"
-# Reiniciar CSV en cada ejecución con encabezado
+# Reset CSV on each run and write header
 echo 'instance,port,game_password' > "$CSV_FILE"
 
 # Helpers
@@ -203,20 +210,20 @@ for ((i=1; i<=COUNT; i++)); do
   instance="game${i}"
   game_port=$(( GAME_PORT_START + i - 1 ))
   tv_port=$(( TV_PORT_START + i - 1 ))
-  # Generar contraseñas distintas para juego y RCON
+  # Generate distinct passwords for game and RCON
   game_pass="$(rand_pass)"
   rcon_pass="$(rand_pass)"
-  # Asegurar que sean diferentes (muy improbable colisión, pero lo manejamos)
+  # Ensure they are different (collision is very unlikely but handled)
   if [[ "$rcon_pass" == "$game_pass" ]]; then
     rcon_pass="$(rand_pass)"
   fi
 
   echo "==> Creando/ajustando @$instance (game_port=$game_port, tv_port=$tv_port)"
 
-  # Create instance if needed (idempotente)
+  # Create instance if needed (idempotent)
   "$MSM_CMD" "@${instance}" create || true
 
-  # Ensure config files present
+  # Ensure config files exist for the instance
   ensure_inst_cfg "$instance"
   server_conf="$CFG_DIR/inst-$instance/server.conf"
   gotv_conf="$CFG_DIR/inst-$instance/gotv.conf"
@@ -235,12 +242,12 @@ for ((i=1; i<=COUNT; i++)); do
   echo "    Iniciando @$instance ..."
   GSLT="$GSLT_INPUT" "$MSM_CMD" "@${instance}" start
 
-  # Añadir entrada al JSON de servidores gestionados
+  # Append entry to managed servers JSON
   obj=$(jq -n --arg ip "$IP_INPUT" --argjson port "$game_port" --arg rcon "$rcon_pass" '{canBeUsed:true, ip:$ip, port:$port, rconPassword:$rcon, usedBy:null}')
   tmpfile=$(mktemp)
   jq --argjson o "$obj" '. + [ $o ]' "$JSON_FILE" > "$tmpfile" && mv "$tmpfile" "$JSON_FILE"
 
-  # Registrar contraseña del juego en CSV
+  # Record game password in CSV
   echo "${instance},${game_port},${game_pass}" >> "$CSV_FILE"
 done
 

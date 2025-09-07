@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs Docker if missing (Debian/Ubuntu), then runs TMT2 container.
+# Purpose: Ensure Docker is available and run the TMT2 container.
+# - Installs Docker if missing (Debian/Ubuntu-based systems).
+# - Ensures the Docker daemon is running and accessible.
+# - Creates the host storage directory at /home/tmt2/storage.
+# - Starts or creates the 'tmt2' container (port 8080 exposed).
+# - Waits for /home/tmt2/storage/access_tokens.json to appear and prints it.
 
 have_cmd() { command -v "$1" >/dev/null 2>&1; }
 
@@ -38,14 +43,14 @@ ensure_docker_installed() {
 }
 
 docker_cmd() {
-  # Ejecuta docker y, si falla por permisos, intenta con sudo.
+  # Run docker and, if permission denied, retry with sudo.
   if docker "$@"; then
     return 0
   fi
   if have_cmd sudo; then
     sudo docker "$@"
   else
-    echo "No hay permisos para ejecutar docker y no hay sudo disponible." >&2
+    echo "No permissions to run docker and no sudo available." >&2
     return 1
   fi
 }
@@ -53,13 +58,13 @@ docker_cmd() {
 main() {
   ensure_docker_installed
 
-  # Verificar acceso a docker (daemon y permisos)
+  # Verify docker daemon accessibility and permissions
   if ! docker_cmd ps >/dev/null 2>&1; then
-    echo "No se pudo comunicar con el daemon de Docker. Verifica que esté en ejecución." >&2
+    echo "Cannot communicate with Docker daemon. Ensure it is running." >&2
     exit 1
   fi
 
-  # Asegurar el directorio de almacenamiento
+  # Ensure the storage directory exists with correct ownership
   local host_dir="/home/tmt2/storage"
   if [[ ! -d "$host_dir" ]]; then
     mkdir -p "$host_dir" 2>/dev/null || {
@@ -67,13 +72,13 @@ main() {
         sudo mkdir -p "$host_dir"
         sudo chown "$USER":"$USER" "$host_dir" || true
       else
-        echo "No se pudo crear $host_dir (quizá requiere permisos elevados)." >&2
+        echo "Could not create $host_dir (may require elevated privileges)." >&2
         exit 1
       fi
     }
   fi
 
-  # Si el contenedor existe, arrancarlo; si no, crearlo
+  # If the container exists, start it; otherwise create it
   if docker_cmd ps -a --format '{{.Names}}' | grep -Fxq tmt2; then
     if docker_cmd ps --format '{{.Names}}' | grep -Fxq tmt2; then
       echo "El contenedor 'tmt2' ya está en ejecución."
@@ -88,7 +93,7 @@ main() {
 
   echo "Listo. TMT2 está disponible en http://localhost:8080"
 
-  # Mostrar el archivo de tokens creado por el contenedor cuando aparezca
+  # Show the tokens file created by the container when it appears
   tokens_file="/home/tmt2/storage/access_tokens.json"
   echo "Esperando a que se genere $tokens_file ..."
   for i in {1..60}; do
