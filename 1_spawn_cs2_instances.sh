@@ -36,7 +36,7 @@ ensure_deps() {
   if have_cmd apt-get && have_cmd dpkg; then
     local SUDO=""
     if [[ $EUID -ne 0 ]]; then
-      if have_cmd sudo; then SUDO="sudo"; else echo "Aviso: no hay sudo/root; no puedo instalar dependencias" >&2; return 0; fi
+      if have_cmd sudo; then SUDO="sudo"; else echo "Notice: no sudo/root available; cannot install dependencies" >&2; return 0; fi
     fi
 
     # Ensure i386 architecture is enabled for 32-bit libs
@@ -54,7 +54,7 @@ ensure_deps() {
     done
     if ((${#missing[@]})); then
       $SUDO apt-get update -y
-      # Intentar instalar, continuar si alguno falla para no abortar el flujo
+      # Try to install; continue even if some fail to avoid aborting
       $SUDO apt-get install -y "${missing[@]}" || true
     fi
   else
@@ -72,7 +72,7 @@ ensure_repo() {
     if have_cmd wget; then
       wget -q -O "$zip_path" "$ZIP_URL"
     else
-      echo "ERROR: 'wget' no está disponible y es necesario para descargar el ZIP" >&2
+      echo "ERROR: 'wget' is not available and is required to download the ZIP" >&2
       return 1
     fi
 
@@ -97,7 +97,7 @@ run_setup_or_update() {
   elif have_cmd cs2-server; then
     cs2_cmd="$(command -v cs2-server)"
   else
-    # Fallback: intentar con msm si existe
+    # Fallback: try msm if it exists
     if have_cmd msm; then cs2_cmd="$(command -v msm)"; else return 0; fi
   fi
 
@@ -218,7 +218,7 @@ for ((i=1; i<=COUNT; i++)); do
     rcon_pass="$(rand_pass)"
   fi
 
-  echo "==> Creando/ajustando @$instance (game_port=$game_port, tv_port=$tv_port)"
+  echo "==> Creating/adjusting @$instance (game_port=$game_port, tv_port=$tv_port)"
 
   # Create instance if needed (idempotent)
   "$MSM_CMD" "@${instance}" create || true
@@ -239,7 +239,7 @@ for ((i=1; i<=COUNT; i++)); do
   set_tv_port "$gotv_conf" "$tv_port"
 
   # Start instance with provided GSLT
-  echo "    Iniciando @$instance ..."
+  echo "    Starting @$instance ..."
   GSLT="$GSLT_INPUT" "$MSM_CMD" "@${instance}" start
 
   # Append entry to managed servers JSON
@@ -251,5 +251,5 @@ for ((i=1; i<=COUNT; i++)); do
   echo "${instance},${game_port},${game_pass}" >> "$CSV_FILE"
 done
 
-echo "Listo. JSON generado en: $JSON_FILE"
-echo "CSV de contraseñas generado en: $CSV_FILE"
+echo "Done. JSON generated at: $JSON_FILE"
+echo "Passwords CSV generated at: $CSV_FILE"

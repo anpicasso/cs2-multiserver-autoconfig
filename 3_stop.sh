@@ -32,7 +32,7 @@ MSM_CMD="$(resolve_msm)"
 
 JSON_FILE="/home/tmt2/storage/managed_game_servers.json"
 if [[ -f "$JSON_FILE" ]]; then
-  echo "Usando JSON: $JSON_FILE"
+  echo "Using JSON: $JSON_FILE"
   COUNT=0
   if command -v jq >/dev/null 2>&1; then
     COUNT=$(jq 'length' "$JSON_FILE")
@@ -43,15 +43,15 @@ if [[ -f "$JSON_FILE" ]]; then
   if [[ -n "$COUNT" && "$COUNT" -gt 0 ]]; then
     for ((i=1; i<=COUNT; i++)); do
       instance="game${i}"
-      echo "Deteniendo @${instance} ..."
+      #echo "Stopping @${instance} ..."
       "$MSM_CMD" "@${instance}" stop || true
     done
-    echo "Instancias cs2 detenidas (COUNT=$COUNT)."
+    echo "CS2 instances stopped (COUNT=$COUNT)."
   else
-    echo "No hay instancias para detener (COUNT=$COUNT)."
+    echo "No instances to stop (COUNT=$COUNT)."
   fi
 else
-  echo "Aviso: No se encontró $JSON_FILE; omitiendo parada de instancias cs2."
+  echo "Notice: $JSON_FILE not found; skipping CS2 instance stop."
 fi
 
 # Stop Docker container 'tmt2' if it exists
@@ -62,26 +62,26 @@ docker_cmd() {
 
 if command -v docker >/dev/null 2>&1 || command -v sudo >/dev/null 2>&1; then
   if docker_cmd ps -a --format '{{.Names}}' | grep -Fxq tmt2; then
-    echo "Deteniendo contenedor Docker 'tmt2'..."
+    echo "Stopping Docker container 'tmt2'..."
     docker_cmd stop tmt2 >/dev/null || true
   else
-    echo "Contenedor 'tmt2' no existe; nada que detener."
+    echo "Container 'tmt2' does not exist; nothing to stop."
   fi
 else
-  echo "Aviso: Docker no está disponible; omitiendo parada del contenedor."
+  echo "Notice: Docker is not available; skipping container stop."
 fi
 
 # Remove directory /home/tmt2
 TARGET_DIR="/home/tmt2"
 if [[ -d "$TARGET_DIR" ]]; then
-  echo "Eliminando $TARGET_DIR ..."
+  echo "Deleting $TARGET_DIR ..."
   if rm -rf "$TARGET_DIR" 2>/dev/null; then
     :
   elif command -v sudo >/dev/null 2>&1; then
     sudo rm -rf "$TARGET_DIR" || true
   fi
 else
-  echo "Directorio $TARGET_DIR no existe; omitido."
+  echo "Directory $TARGET_DIR does not exist; skipped."
 fi
 
-echo "Listo. Paradas y limpieza completadas."
+echo "Done. Stops and cleanup completed."

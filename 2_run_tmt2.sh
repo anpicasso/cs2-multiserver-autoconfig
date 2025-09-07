@@ -15,12 +15,12 @@ ensure_docker_installed() {
     return 0
   fi
 
-  echo "Docker no instalado. Intentando instalarlo..." >&2
+  echo "Docker not installed. Attempting to install..." >&2
 
   if have_cmd apt-get; then
     local SUDO=""
     if [[ $EUID -ne 0 ]]; then
-      if have_cmd sudo; then SUDO="sudo"; else echo "Se requiere root/sudo para instalar Docker" >&2; exit 1; fi
+      if have_cmd sudo; then SUDO="sudo"; else echo "Root/sudo is required to install Docker" >&2; exit 1; fi
     fi
 
     # Instalar docker.io de los repos del sistema
@@ -32,12 +32,12 @@ ensure_docker_installed() {
     fi
 
   else
-    echo "Instalación automática no soportada en este sistema. Instala Docker manualmente: https://docs.docker.com/engine/install/" >&2
+    echo "Automatic installation is not supported on this system. Please install Docker manually: https://docs.docker.com/engine/install/" >&2
     exit 1
   fi
 
   if ! have_cmd docker; then
-    echo "Docker no quedó instalado correctamente." >&2
+    echo "Docker did not install correctly." >&2
     exit 1
   fi
 }
@@ -81,30 +81,30 @@ main() {
   # If the container exists, start it; otherwise create it
   if docker_cmd ps -a --format '{{.Names}}' | grep -Fxq tmt2; then
     if docker_cmd ps --format '{{.Names}}' | grep -Fxq tmt2; then
-      echo "El contenedor 'tmt2' ya está en ejecución."
+      echo "Container 'tmt2' is already running."
     else
-      echo "Iniciando contenedor existente 'tmt2'..."
+      echo "Starting existing container 'tmt2'..."
       docker_cmd start tmt2 >/dev/null
     fi
   else
-    echo "Creando y ejecutando contenedor 'tmt2'..."
+    echo "Creating and starting container 'tmt2'..."
     docker_cmd run --name tmt2 -d -p 8080:8080 -v /home/tmt2/storage:/app/backend/storage jensforstmann/tmt2 >/dev/null
   fi
 
-  echo "Listo. TMT2 está disponible en http://localhost:8080"
+  echo "Done. TMT2 is available at http://localhost:8080"
 
   # Show the tokens file created by the container when it appears
   tokens_file="/home/tmt2/storage/access_tokens.json"
-  echo "Esperando a que se genere $tokens_file ..."
+  echo "Waiting for $tokens_file to be created ..."
   for i in {1..60}; do
     if [[ -f "$tokens_file" ]]; then break; fi
     sleep 1
   done
   if [[ -f "$tokens_file" ]]; then
-    echo "Contenido de $tokens_file:"
+    echo "Contents of $tokens_file:"
     cat "$tokens_file"
   else
-    echo "Advertencia: No se encontró $tokens_file tras esperar 60s. El contenedor podría seguir inicializando."
+    echo "Warning: $tokens_file not found after 60s. The container may still be initializing."
   fi
 }
 
