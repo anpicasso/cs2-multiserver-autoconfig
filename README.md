@@ -10,7 +10,7 @@
 **Requirements**
 - **OS:** Debian/Ubuntu recommended (scripts auto-install dependencies with `apt-get`).
 - **Permissions:** May use `sudo` to install packages and manage Docker and `/home/tmt2`.
-- **Network:** Required to clone repos and pull Docker images.
+- **Network:** Required to download dependencies, cs2-multiserver and pull Docker images.
 
 **Setup**
 - Make the scripts executable:
@@ -20,7 +20,7 @@
 - **Usage:** `./spawn_cs2_instances.sh <count> <ip> <gslt> [start_game_port=27015] [start_tv_port=27050]`
 - **What it does:**
   - Ensures dependencies (`jq`, `tmux`, etc.) on Debian/Ubuntu.
-  - Clones `cs2-multiserver` directly into the same directory where this script resides if missing.
+  - Downloads `cs2-multiserver` directly into the same directory where this script resides if missing.
   - Runs initial setup or update for `cs2-server`/`msm`.
   - Creates `/home/tmt2/storage` (with `sudo` if needed).
   - Starts `count` instances named `@game1 .. @gameN`, incrementing from the starting ports.
@@ -57,6 +57,6 @@
 - Stop everything and clean storage: `./stop.sh`
 
 **Notes**
-- The `spawn` script clones `cs2-multiserver` into the same directory as the script if not present. Running it in a clean directory is recommended.
+- The `spawn` script downloads `cs2-multiserver` into the same directory as the script if not present. Running it in a clean directory is recommended.
 - Managed servers JSON lives at `/home/tmt2/storage/managed_game_servers.json` and is recreated on every `spawn` run.
 - `stop.sh` removes `/home/tmt2`. Any data under that path will be lost.
