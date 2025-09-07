@@ -145,6 +145,11 @@ if [[ -f "$JSON_FILE" ]]; then
 fi
 echo '[]' > "$JSON_FILE"
 
+# CSV de contraseñas de juego (en el directorio del script)
+CSV_FILE="$SCRIPT_DIR/game_passwords.csv"
+# Reiniciar CSV en cada ejecución con encabezado
+echo 'instance,port,game_password' > "$CSV_FILE"
+
 # Helpers
 rand_pass() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c 6; echo; }
 
@@ -198,7 +203,13 @@ for ((i=1; i<=COUNT; i++)); do
   instance="game${i}"
   game_port=$(( GAME_PORT_START + i - 1 ))
   tv_port=$(( TV_PORT_START + i - 1 ))
-  pass="$(rand_pass)"
+  # Generar contraseñas distintas para juego y RCON
+  game_pass="$(rand_pass)"
+  rcon_pass="$(rand_pass)"
+  # Asegurar que sean diferentes (muy improbable colisión, pero lo manejamos)
+  if [[ "$rcon_pass" == "$game_pass" ]]; then
+    rcon_pass="$(rand_pass)"
+  fi
 
   echo "==> Creando/ajustando @$instance (game_port=$game_port, tv_port=$tv_port)"
 
@@ -212,8 +223,8 @@ for ((i=1; i<=COUNT; i++)); do
 
   # Apply server settings
   set_kv_server_conf "$server_conf" "PORT" "$game_port"
-  set_kv_server_conf "$server_conf" "PASS" "$pass"
-  set_kv_server_conf "$server_conf" "RCON_PASS" "$pass"
+  set_kv_server_conf "$server_conf" "PASS" "$game_pass"
+  set_kv_server_conf "$server_conf" "RCON_PASS" "$rcon_pass"
   set_kv_server_conf "$server_conf" "HOST" "Game ${i}"
   enable_rcon "$server_conf"
 
@@ -225,9 +236,13 @@ for ((i=1; i<=COUNT; i++)); do
   GSLT="$GSLT_INPUT" "$MSM_CMD" "@${instance}" start
 
   # Añadir entrada al JSON de servidores gestionados
-  obj=$(jq -n --arg ip "$IP_INPUT" --argjson port "$game_port" --arg rcon "$pass" '{canBeUsed:true, ip:$ip, port:$port, rconPassword:$rcon, usedBy:null}')
+  obj=$(jq -n --arg ip "$IP_INPUT" --argjson port "$game_port" --arg rcon "$rcon_pass" '{canBeUsed:true, ip:$ip, port:$port, rconPassword:$rcon, usedBy:null}')
   tmpfile=$(mktemp)
   jq --argjson o "$obj" '. + [ $o ]' "$JSON_FILE" > "$tmpfile" && mv "$tmpfile" "$JSON_FILE"
+
+  # Registrar contraseña del juego en CSV
+  echo "${instance},${game_port},${game_pass}" >> "$CSV_FILE"
 done
 
 echo "Listo. JSON generado en: $JSON_FILE"
+echo "CSV de contraseñas generado en: $CSV_FILE"
